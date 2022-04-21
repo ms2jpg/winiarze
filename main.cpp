@@ -311,7 +311,7 @@ class Student : public Entity {
                 switch (status.MPI_TAG) {
                     case WINE_ANNOUNCEMENT:
                         debug("got wine announcement from %d", status.MPI_SOURCE);
-                        this->winemakerAnnouncements[status.MPI_SOURCE] = 1;
+                        this->winemakerAnnouncements[status.MPI_SOURCE] += 1;
                         break;
                     case WINE_REQUEST:
                         this->addWineRequest(packet);
@@ -330,7 +330,7 @@ class Student : public Entity {
                               this->winemakerAnnouncements[2],
                               this->winemakerAnnouncements[3]
                           );
-                        this->winemakerAnnouncements[packet.data] = 0;
+                        this->winemakerAnnouncements[packet.data] -= 1;
                         this->wineRequests.erase(this->wineRequests.begin());
                 }
                 debug("canGrabWine");
@@ -397,7 +397,7 @@ class Student : public Entity {
 
         bool isAnyWineAvailable() {
             for (int i = 0; i < this->winemakerAnnouncements.size(); i++) {
-                if (this->winemakerAnnouncements[i]) {
+                if (this->winemakerAnnouncements[i] > 0) {
                     return true;
                 }
             }
@@ -421,7 +421,7 @@ class Student : public Entity {
             int winemakerID;
             for (int id = 0; id < WINEMAKERS_NUMBER; id++) {
                 if (this->winemakerAnnouncements[id] == 1) {
-                    this->winemakerAnnouncements[id] = 0;
+                    this->winemakerAnnouncements[id] -= 1;
                     winemakerID = id;
                     break;
                 }
