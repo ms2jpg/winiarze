@@ -31,7 +31,7 @@
 
 
 
-#define debug(FORMAT,...) printf("\033[%d;%dm[c:%d][r:%d]: " FORMAT "\033[0m\n",(*this->rank) % 2, 31 + ((*this->rank) / 2) % 7, *this->clock, *this->rank, ##__VA_ARGS__);
+#define debug(FORMAT,...) printf("\033[%d;%dm[c:%d][r:%d][%c]: " FORMAT "\033[0m\n",(*this->rank) % 2, 31 + ((*this->rank) / 2) % 7, *this->clock, *this->rank, ((*this->rank) < WINEMAKERS_NUMBER ? 'W' : 'S'), ##__VA_ARGS__);
 
 
 class Entity {
@@ -310,7 +310,6 @@ class Student : public Entity {
                 MPI_Recv(&packet, sizeof(packet), MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
                 switch (status.MPI_TAG) {
                     case WINE_ANNOUNCEMENT:
-                        debug("got wine announcement from %d", status.MPI_SOURCE);
                         this->winemakerAnnouncements[status.MPI_SOURCE] += 1;
                         break;
                     case WINE_REQUEST:
@@ -322,18 +321,9 @@ class Student : public Entity {
                         this->wineRequestsACKs += 1;
                         break;
                     case GRAB_WINE:
-                        debug("grab wine from %d at pos%d, structure %d %d %d %d",
-                              status.MPI_SOURCE,
-                              packet.data,
-                              this->winemakerAnnouncements[0],
-                              this->winemakerAnnouncements[1],
-                              this->winemakerAnnouncements[2],
-                              this->winemakerAnnouncements[3]
-                          );
                         this->winemakerAnnouncements[packet.data] -= 1;
                         this->wineRequests.erase(this->wineRequests.begin());
                 }
-                debug("canGrabWine");
                 if (this->canGrabWine()) {
                     this->grabWine();
                 }
@@ -411,12 +401,6 @@ class Student : public Entity {
         }
 
         void grabWine() {
-            debug("requests");
-            for(int i = 0; i < this->wineRequests.size(); i++) {
-                debug("#%d, clk: %d, rank: %d", i+1, this->wineRequests[i].clock, this->wineRequests[i].rank)
-            }
-            debug(" structure %d %d %d %d", this->winemakerAnnouncements[0], this->winemakerAnnouncements[1], this->winemakerAnnouncements[2], this->winemakerAnnouncements[3]);
-
             this->wineRequestsACKs = 0;
             int winemakerID;
             for (int id = 0; id < WINEMAKERS_NUMBER; id++) {
