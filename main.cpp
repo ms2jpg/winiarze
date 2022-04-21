@@ -93,7 +93,7 @@ class Entity {
 
         void randomSleep() {
             int r = Entity::randInt(MIN_SLEEP, MAX_SLEEP);
-            debug("making wine for %d seconds", r);
+            debug("sleeping for %d seconds", r);
             Entity::threadSleep(r);
         }
 };
@@ -106,14 +106,14 @@ class Winemaker : public Entity {
         std::condition_variable cond;
         std::vector<struct packet> safehouseRequests;
         int safehousesLeft = SAFEHOUSE_NUMBER;
-        int safehouse_request_acks = 0;
+        int safehouseRequestACKs = 0;
         int gotWine = 0;
         int waitingForStudent = 0;
         void main() override {
             std::unique_lock<std::mutex> lck(this->canMakeNewBarrel);
             while (true) {
                 this->randomSleep();
-                debug("made barrel", this->safehousesLeft);
+                debug("made barrel (safehouses left %d)", this->safehousesLeft);
                 this->setGotWine(1);
                 this->sendSafehouseRequests();
                 this->cond.wait(lck);
@@ -163,22 +163,23 @@ class Winemaker : public Entity {
                         this->sendSafehouseRequestACK(status);
                         break;
                     case SAFEHOUSE_REQUEST_ACK:
-                        safehouse_request_acks += 1;
+                        this->safehouseRequestACKs += 1;
                         break;
                     case SAFEHOUSE_TAKEOVER:
                         this->safehousesLeft -= 1;
                         this->safehouseRequests.erase(this->safehouseRequests.begin());
                         break;
                     case GRAB_WINE:
+                        if (this->getGotWine() == 0) {
+                            debug("KURWA %d", status.MPI_SOURCE);
+                        }
                         this->waitingForStudent = 0;
                         this->releaseSafehouse();
                         break;
                     case SAFEHOUSE_RELEASE:
                         this->safehousesLeft++;
-//                        debug("got safehouse release from %d, got %d left", status.MPI_SOURCE, this->safehousesLeft);
                         break;
                 }
-//                this->status();
                 if (this->getGotWine() == 1) {
                     if (this->canGrabSafehouse()) {
                         this->grabSafehouse();
@@ -187,57 +188,44 @@ class Winemaker : public Entity {
             }
         }
 
-        void status() {
-            debug("gotBarrel: %d, safeHousesLeft: %d, requiredACKs %d, safehouseQueueSize: %d, canGrab: %d, waitingForStudent: %d, \nqueue:", this->getGotWine(), this->safehousesLeft, this->safehouse_request_acks, this->safehouseRequests.size(), this->canGrabSafehouse(), this->waitingForStudent);
-            pthread_mutex_lock(&this->safehouseRequestsMutex);
-            for(int i = 0; i < this->safehouseRequests.size(); i++) {
-                debug("#%d -> clk: %d, rank: %d", i+1, this->safehouseRequests[i].clock, this->safehouseRequests[i].rank);
-            }
-            debug("");
-            pthread_mutex_unlock(&this->safehouseRequestsMutex);
-        }
-
         void releaseSafehouse() {
-
-            this->safehousesLeft++;
             this->setGotWine(0);
             struct packet shr = {
                     this->incrementClock(),
                     *this->rank
             };
 
-
             for (int destID = 0; destID < WINEMAKERS_NUMBER; destID++) {
-                if (destID != *this->rank) {
+                if (destID == *this->rank) {
+                    this->safehousesLeft++;
+                } else {
                     MPI_Send(&shr, sizeof(shr), MPI_BYTE, destID, SAFEHOUSE_RELEASE, MPI_COMM_WORLD);
                 }
             }
             debug("wine grabbed, releasing safehouse (left: %d)", this->safehousesLeft);
-//            pthread_mutex_unlock(&this->canMakeNewBarrel);
             this->cond.notify_all();
-            debug("after unlock");
         }
 
         bool canGrabSafehouse() {
-//            debug("canGrabSafehouse(): top %d, acks %d, left %d, %d", this->getTopSafehouseRequestRank(), safehouse_request_acks, this->safehousesLeft, this->getGotWine());
             return this->getTopSafehouseRequestRank() == *this->rank
-            && this->safehouse_request_acks == (WINEMAKERS_NUMBER - 1)
+            && this->safehouseRequestACKs == (WINEMAKERS_NUMBER - 1)
             && this->safehousesLeft > 0
             && this->getGotWine();
         }
 
         void grabSafehouse() {
 
-            this->safehouse_request_acks = 0;
+            this->safehouseRequestACKs = 0;
             struct packet sht = {
                     this->incrementClock(),
                     *this->rank
             };
-            this->safehousesLeft -= 1;
 
             this->safehouseRequests.erase(this->safehouseRequests.begin());
             for (int destID = 0; destID < WINEMAKERS_NUMBER; destID++) {
-                if (destID != *this->rank) {
+                if (destID == *this->rank) {
+                    this->safehousesLeft -= 1;
+                } else {
                     MPI_Send(&sht, sizeof(sht), MPI_BYTE, destID, SAFEHOUSE_TAKEOVER, MPI_COMM_WORLD);
                 }
             }
@@ -320,40 +308,34 @@ class Student : public Entity {
             MPI_Status status;
             while(true) {
                 MPI_Recv(&packet, sizeof(packet), MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-//                if (*this->rank == 7 && status.MPI_TAG == WINE_ANNOUNCEMENT) {
-//                    debug("grabbed wine from winemaker #%d", status.MPI_SOURCE);
-//                    packet.clock++;
-//                    std::this_thread::sleep_for(std::chrono::milliseconds(1000 * 8));
-//                    MPI_Send(&packet, sizeof(packet), MPI_BYTE, status.MPI_SOURCE, GRAB_WINE, MPI_COMM_WORLD);
-//                }
                 switch (status.MPI_TAG) {
                     case WINE_ANNOUNCEMENT:
+                        debug("got wine announcement from %d", status.MPI_SOURCE);
                         this->winemakerAnnouncements[status.MPI_SOURCE] = 1;
-                        if (this->canGrabWine()) {
-                            this->grabWine();
-                        }
                         break;
                     case WINE_REQUEST:
                         this->addWineRequest(packet);
                         this->updateAndIncrementClock(packet.clock);
                         this->sendWineRequestACK(status);
-                        if (this->canGrabWine()) {
-                            this->grabWine();
-                        }
                         break;
                     case WINE_REQUEST_ACK:
                         this->wineRequestsACKs += 1;
-                        if (this->canGrabWine()) {
-                            this->grabWine();
-                        }
                         break;
                     case GRAB_WINE:
-//                        debug("got grab wine message %d", packet.data);
+                        debug("grab wine from %d at pos%d, structure %d %d %d %d",
+                              status.MPI_SOURCE,
+                              packet.data,
+                              this->winemakerAnnouncements[0],
+                              this->winemakerAnnouncements[1],
+                              this->winemakerAnnouncements[2],
+                              this->winemakerAnnouncements[3]
+                          );
                         this->winemakerAnnouncements[packet.data] = 0;
                         this->wineRequests.erase(this->wineRequests.begin());
-                        if (this->canGrabWine()) {
-                            this->grabWine();
-                        }
+                }
+                debug("canGrabWine");
+                if (this->canGrabWine()) {
+                    this->grabWine();
                 }
             }
         }
@@ -408,7 +390,7 @@ class Student : public Entity {
 
         int getTopWineRequestRank() {
             pthread_mutex_lock(&this->wineRequestMutex);
-            int r = this->wineRequests.size() > 0 ? this->wineRequests[0].rank : 0;
+            int r = this->wineRequests.size() > 0 ? this->wineRequests[0].rank : -1;
             pthread_mutex_unlock(&this->wineRequestMutex);
             return r;
         }
@@ -423,22 +405,23 @@ class Student : public Entity {
         }
 
         bool canGrabWine() {
-//            debug("canGrabWine(): top %d, acks %d, any wine %d, anns %d %d %d %d", this->getTopWineRequestRank(), this->wineRequestsACKs, this->isAnyWineAvailable(),
-//                  this->winemakerAnnouncements[0],
-//                  this->winemakerAnnouncements[1],
-//                  this->winemakerAnnouncements[2],
-//                  this->winemakerAnnouncements[3]
-//                  );
             return this->getTopWineRequestRank() == *this->rank
                    && this->wineRequestsACKs == (STUDENTS_NUMBER - 1)
                    && this->isAnyWineAvailable();
         }
 
         void grabWine() {
+            debug("requests");
+            for(int i = 0; i < this->wineRequests.size(); i++) {
+                debug("#%d, clk: %d, rank: %d", i+1, this->wineRequests[i].clock, this->wineRequests[i].rank)
+            }
+            debug(" structure %d %d %d %d", this->winemakerAnnouncements[0], this->winemakerAnnouncements[1], this->winemakerAnnouncements[2], this->winemakerAnnouncements[3]);
+
             this->wineRequestsACKs = 0;
             int winemakerID;
             for (int id = 0; id < WINEMAKERS_NUMBER; id++) {
-                if (this->winemakerAnnouncements[id]) {
+                if (this->winemakerAnnouncements[id] == 1) {
+                    this->winemakerAnnouncements[id] = 0;
                     winemakerID = id;
                     break;
                 }
@@ -450,17 +433,14 @@ class Student : public Entity {
                     winemakerID
             };
 
-            MPI_Send(&wg, sizeof(wg), MPI_BYTE, winemakerID, GRAB_WINE, MPI_COMM_WORLD);
-            this->wineRequests.erase(this->wineRequests.begin());
-            this->winemakerAnnouncements[winemakerID] = false;
-
             for (int destID = WINEMAKERS_NUMBER; destID < (WINEMAKERS_NUMBER + STUDENTS_NUMBER); destID++) {
                 if (destID != *this->rank) {
                     MPI_Send(&wg, sizeof(wg), MPI_BYTE, destID, GRAB_WINE, MPI_COMM_WORLD);
                 }
             }
-//            debug("unlock main thread")
-//            pthread_mutex_unlock(&this->canMakeNewBarrel);
+
+            MPI_Send(&wg, sizeof(wg), MPI_BYTE, winemakerID, GRAB_WINE, MPI_COMM_WORLD);
+            this->wineRequests.erase(this->wineRequests.begin());
             this->cond.notify_all();
         }
 
