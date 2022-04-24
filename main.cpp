@@ -12,9 +12,9 @@
 
 
 // SETTINGS
-#define WINEMAKERS_NUMBER 4
-#define STUDENTS_NUMBER 4
-#define SAFEHOUSE_NUMBER 3
+#define WINEMAKERS_NUMBER 2
+#define STUDENTS_NUMBER 2
+#define SAFEHOUSE_NUMBER 1
 
 #define MIN_SLEEP 1
 #define MAX_SLEEP 10
@@ -120,7 +120,7 @@ class Winemaker : public Entity {
             }
         }
 
-        int setGotWine(int x) {
+        void setGotWine(int x) {
             pthread_mutex_lock(&this->gotWineMutex);
             this->gotWine = x;
             pthread_mutex_unlock(&this->gotWineMutex);
@@ -439,12 +439,32 @@ class Student : public Entity {
 
 int main(int argc, char **argv)
 {
+    
+    
+
     int clock = 0;
     pthread_mutex_t clockMutex = PTHREAD_MUTEX_INITIALIZER;
     int rank;
+
     MPI_Init(&argc,&argv);
+
+
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+
+    if (rank==0)
+    {
+    // Print configuration
+    int world_size;
+
+    MPI_Comm_size( MPI_COMM_WORLD, &world_size );
+    printf("Winemakers: %d\n", WINEMAKERS_NUMBER);
+    printf("Students: %d\n", STUDENTS_NUMBER);
+    printf("Safehouses: %d\n", SAFEHOUSE_NUMBER);
+    printf("Number of processes running: %d\n\n", world_size);
+
+    }
+   
 
     Entity* entity;
     if (rank < WINEMAKERS_NUMBER) {
