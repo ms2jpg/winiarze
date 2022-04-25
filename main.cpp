@@ -140,6 +140,13 @@ public:
             debug("made barrel (safehouses left %d)", this->safehousesLeft);
             this->setGotWine(1);
             this->sendSafehouseRequests();
+            if (WINEMAKERS_NUMBER <= 1)
+            {
+                if (this->canGrabSafehouse())
+                {
+                    this->grabSafehouse();
+                }
+            }
             this->cond.wait(lck);
         }
     }
