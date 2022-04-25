@@ -1,5 +1,13 @@
+outputName := main
+n = 5
+
+
 build:
-	@mpic++ main.cpp -o main
+	@mpic++ ${wildcard *.cpp} -o ${outputName}
 
 run: build
-	@mpirun -np 5 --oversubscribe main
+	@echo Running ${outputName} with ${n} processes
+	@mpirun -np ${n} --oversubscribe ${args} ${outputName}
+clean:
+	rm -f ${outputName}
+

@@ -19,14 +19,18 @@
 #define MAX_SLEEP 10
 
 // MESSAGE TYPES
-#define SAFEHOUSE_REQUEST 0
-#define SAFEHOUSE_REQUEST_ACK 1
-#define SAFEHOUSE_TAKEOVER 2
-#define SAFEHOUSE_RELEASE 3
-#define WINE_ANNOUNCEMENT 4
-#define WINE_REQUEST 5
-#define WINE_REQUEST_ACK 6
-#define GRAB_WINE 7
+enum messageTypes
+{
+SAFEHOUSE_REQUEST,
+SAFEHOUSE_REQUEST_ACK,
+SAFEHOUSE_TAKEOVER,
+SAFEHOUSE_RELEASE,
+WINE_ANNOUNCEMENT,
+WINE_REQUEST,
+WINE_REQUEST_ACK,
+GRAB_WINE,
+};
+
 
 char* printTime()
 {
@@ -41,6 +45,8 @@ char* printTime()
 }
 
 #define debug(FORMAT, ...) printf("\033[%d;%dm[c:%d][r:%d][%c][%s]: " FORMAT "\033[0m\n", (*this->rank) % 2, 31 + ((*this->rank) / 2) % 7, *this->clock, *this->rank, ((*this->rank) < WINEMAKERS_NUMBER ? 'W' : 'S'),printTime(), ##__VA_ARGS__);
+
+
 
 class Entity
 {
@@ -196,7 +202,7 @@ public:
         while (true)
         {
             MPI_Recv(&packet, sizeof(packet), MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            switch (status.MPI_TAG)
+            switch ((messageTypes)status.MPI_TAG)
             {
             case SAFEHOUSE_REQUEST:
                 this->addSafehouseRequest(packet);
@@ -372,7 +378,7 @@ public:
         while (true)
         {
             MPI_Recv(&packet, sizeof(packet), MPI_BYTE, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-            switch (status.MPI_TAG)
+            switch ((messageTypes)status.MPI_TAG)
             {
             case WINE_ANNOUNCEMENT:
                 this->winemakerAnnouncements[status.MPI_SOURCE] += 1;
