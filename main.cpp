@@ -13,8 +13,6 @@
 #include "Winemaker.h"
 #include "Student.h"
 
-
-
 int main(int argc, char **argv)
 {
     int clock = 0;

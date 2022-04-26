@@ -26,25 +26,16 @@ class Student : public Entity
 public:
     std::vector<int> winemakerAnnouncements;
     void main() override;
-
     void communication() override;
-
     void sendWineRequestACK(MPI_Status status);
-
     static bool wineRequestCompare(const struct Entity::packet &a, const struct Entity::packet &b);
-
-    void sortWineRequests(bool lock );
-
+    void sortWineRequests(bool lock);
     void addWineRequest(struct Entity::packet wr);
     void sendWineRequest();
-
     int getTopWineRequestRank();
-
     bool isAnyWineAvailable();
-
     bool canGrabWine();
     void grabWine();
-
     Student(int *c, pthread_mutex_t *m, int *r);
 };
 #endif

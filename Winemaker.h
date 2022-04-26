@@ -16,9 +16,6 @@
 #ifndef WINEMAKER_H
 #define WINEMAKER_H
 
-
-
-
 class Winemaker : public Entity
 {
 public:
@@ -32,25 +29,17 @@ public:
     int gotWine = 0;
     int waitingForStudent = 0;
     void main() override;
-
     void setGotWine(int x);
-
     int getGotWine();
-
     static bool safehouseRequestCompare(const struct packet &a, const struct packet &b);
-
     void sortSafehouseRequests(bool lock);
     void communication();
     void releaseSafehouse();
-
     bool canGrabSafehouse();
-
     void grabSafehouse();
     void sendWineAnnouncement();
-
     int getTopSafehouseRequestRank();
     void sendSafehouseRequestACK(MPI_Status status);
-
     void addSafehouseRequest(struct packet shr);
     void sendSafehouseRequests();
     Winemaker(int *c, pthread_mutex_t *m, int *r);
