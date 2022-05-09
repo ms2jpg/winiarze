@@ -147,3 +147,6 @@ fabric.properties
 
 main
 # End of https://www.toptal.com/developers/gitignore/api/clion
+
+.idea
+.vscode

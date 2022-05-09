@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "*.html": "html",
-        "*.plsql": "sql",
-        "algorithm": "cpp",
-        "cstdlib": "cpp",
-        "mutex": "cpp"
-    }
-}
